@@ -13,7 +13,6 @@ cookie_expire_time_hours = config.cookie_expire_time_hours
 
 app = Flask(__name__)
 
-# TODO: change domain to production
 CORS(app, origins=config.origin_CORS_domain, supports_credentials=True)
 
 
@@ -137,7 +136,7 @@ def page_not_found(e):
 			{
 				'status': 'error',
 				'reason': 'not-found',
-				'human_reason': 'Requested endpoint or resource is not found'
+				'human_reason': e
 			}),
 		404)
 
