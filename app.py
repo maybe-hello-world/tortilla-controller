@@ -7,9 +7,16 @@ import datetime
 import threading
 import config
 import connectors
+import logging
 
 cookie_clean_timer_minutes = config.cookie_clean_timer_minutes
 cookie_expire_time_hours = config.cookie_expire_time_hours
+
+logging.basicConfig(filename=config.log_file, level=config.log_level, format=config.log_format)
+logger = logging.getLogger("main")
+
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
 
@@ -22,6 +29,7 @@ def clean_cookie():
 	for i in cookie_storage.keys():
 		if cookie_storage[i]['expiretime'] < curtime:
 			del cookie_storage[i]
+	logger.debug("Cookie cleaned")
 
 
 cookie_storage = {}
@@ -41,6 +49,7 @@ def authenticated(func):
 		# check if the user is logged in
 
 		if "sesskey" not in request.cookies or request.cookies['sesskey'] not in cookie_storage:
+			logger.debug("Unauthenticated request to " + request.url)
 			return make_response(
 				jsonify(
 					{
@@ -77,6 +86,7 @@ def authorized(func):
 			list_vms()
 
 		if resource is None or resource not in cookie_storage[sesskey]['vmlist']:
+			logger.debug("Unauthorized request to " + request.url)
 			return make_response(
 				jsonify(
 					{
@@ -102,6 +112,8 @@ def json_check(func):
 	def wrapper(*args, **kwargs):
 		# check Content-Type
 		if not request.content_type == 'application/json':
+			logger.warning("Wrong Content-Type, url: {}".format(request.url))
+			logger.debug("Data: " + str(request.data))
 			return make_response(
 				jsonify(
 					{
@@ -115,6 +127,8 @@ def json_check(func):
 		try:
 			request.get_json()
 		except BadRequest:
+			logger.warning("Invalid content, url: {}".format(request.url))
+			logger.debug("Data: " + str(request.data) + str(request.form))
 			return make_response(
 				jsonify(
 					{
@@ -131,6 +145,7 @@ def json_check(func):
 
 @app.errorhandler(404)
 def page_not_found(e):
+	logger.debug("404 page - " + request.url)
 	return make_response(
 		jsonify(
 			{
@@ -143,12 +158,13 @@ def page_not_found(e):
 
 @app.errorhandler(500)
 def internal_error(e):
+	logger.warning("Internal error occurred. URL: {}, error: {}".format(request.url, e))
 	return make_response(
 		jsonify(
 			{
 				'status': 'error',
 				'reason': 'internal',
-				'human_reason': 'Internal error occurred. Contact site owner.' + e
+				'human_reason': 'Internal error occurred. Contact site owner.' + str(e)
 			}),
 		500)
 
@@ -171,6 +187,8 @@ def login():
 	# check payload
 	if type(data) != dict or 'domain' not in data or 'username' not in data or 'password' not in data or \
 		type(data['domain']) != str or type(data['username']) != str or type(data['password']) != str:
+		logger.warning("Wrong payload in login request")
+		logger.debug("Payload data: " + str(data))
 		return make_response(
 			jsonify(
 				{
@@ -187,6 +205,7 @@ def login():
 
 	# check credentials
 	if not check_credentials(_domain=domain, _username=username, _password=password):
+		logger.info("User {}\\{} didn't authenticate due to wrong credentials".format(domain, username))
 		return make_response(
 			jsonify(
 					{
@@ -236,6 +255,7 @@ def login():
 	resp.headers['Access-Control-Allow-Methods'] = 'GET, POST'
 	resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
 
+	logger.info("{}\\{} successfully authenticated".format(domain, username))
 	return resp
 
 
@@ -243,15 +263,6 @@ def login():
 @authenticated
 def list_vms():
 	sesskey = request.cookies['sesskey']
-	if sesskey not in cookie_storage:
-		return make_response(
-			jsonify(
-				{
-					'status': 'error',
-					'reason': 'unauthenticated',
-					'human_reason': 'Provided cookie is missing in database, please relogin'
-				}),
-			401)
 
 	userdata = cookie_storage[sesskey]
 	domain = userdata['domain']
@@ -268,6 +279,7 @@ def list_vms():
 	for vm in vm_list:
 		cookie_storage[sesskey]['vmlist'].append(vm['vmid'])
 
+	logger.debug("VM list returned to {}\\{}, list: {}".format(domain, username, vm_list))
 	return make_response(jsonify(
 		{
 			"status": "success",
@@ -287,6 +299,7 @@ def command_vm():
 
 	# check payload
 	if "vmid" not in data or "vmprovider" not in data or "action" not in data:
+		logger.warning("Wrong payload in VM action request. Data: " + str(data))
 		return make_response(jsonify(
 			{
 				"status": "error",
@@ -297,6 +310,7 @@ def command_vm():
 
 	# check that method is allowed for this VM provider
 	if data['action'] not in connectors.modules[data['vmprovider']].methods:
+		logger.warning("Unimplemented action requested, action: {}, provider: {}".format(data['action'], data['vmprovider']))
 		return make_response(jsonify(
 			{
 				"status": "error",
@@ -306,6 +320,9 @@ def command_vm():
 		), 400)
 
 	if not connectors.modules[data['vmprovider']].methods[data['action']](data['vmid']):
+		logger.error("Error occurred during executing VM action, action: {}, vmid: {}, provider: {}".format(
+			data['action'], data['vmid'], data['vmprovider'])
+		)
 		return make_response(jsonify(
 			{
 				"status": "error",

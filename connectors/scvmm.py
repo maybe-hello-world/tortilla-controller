@@ -1,6 +1,8 @@
 import requests
+import logging
 
 controller_url = "http://127.0.0.1:5555/api/"
+logger = logging.getLogger("scvmm")
 
 
 def list_vms(domain: str, username: str) -> list:
@@ -28,9 +30,11 @@ def list_vms(domain: str, username: str) -> list:
 				"vmprovider": "scvmm"
 			})
 
+		logger.debug("VM list for {}\\{} returned".format(domain, username))
 		return vm_list
 
-	except (requests.RequestException, KeyError):
+	except (requests.RequestException, KeyError) as e:
+		logger.exception(e)
 		return []
 
 
@@ -39,8 +43,10 @@ def start(vmid: str) -> bool:
 	payload = {'vmid': vmid}
 	try:
 		resp = requests.post(url, data=payload, timeout=5)
+		logger.info(str(vmid) + " start request sent, status: " + str(resp.status_code))
 		return resp.status_code == 204
-	except requests.RequestException:
+	except requests.RequestException as e:
+		logger.exception(str(e))
 		return False
 
 
@@ -49,8 +55,10 @@ def shutdown(vmid: str) -> bool:
 	payload = {'vmid': vmid}
 	try:
 		resp = requests.post(url, data=payload, timeout=5)
+		logger.info(str(vmid) + " shutdown request sent, status: " + str(resp.status_code))
 		return resp.status_code == 204
-	except requests.RequestException:
+	except requests.RequestException as e:
+		logger.exception(str(e))
 		return False
 
 
@@ -59,8 +67,10 @@ def power_off(vmid: str) -> bool:
 	payload = {'vmid': vmid}
 	try:
 		resp = requests.post(url, data=payload, timeout=5)
+		logger.info(str(vmid) + " poweroff request sent, status: " + str(resp.status_code))
 		return resp.status_code == 204
-	except requests.RequestException:
+	except requests.RequestException as e:
+		logger.exception(str(e))
 		return False
 
 
@@ -69,8 +79,10 @@ def save(vmid: str) -> bool:
 	payload = {'vmid': vmid}
 	try:
 		resp = requests.post(url, data=payload, timeout=5)
+		logger.info(str(vmid) + " save request sent, status: " + str(resp.status_code))
 		return resp.status_code == 204
-	except requests.RequestException:
+	except requests.RequestException as e:
+		logger.exception(str(e))
 		return False
 
 
