@@ -41,7 +41,7 @@ def authenticated(func):
 	def wrapper(*args, **kwargs):
 		# check if the user is logged in
 
-		if "sesskey" not in request.cookies:
+		if "sesskey" not in request.cookies or request.cookies['sesskey'] not in cookie_storage:
 			return make_response(
 				jsonify(
 					{
@@ -70,18 +70,14 @@ def authorized(func):
 
 		sesskey = request.cookies['sesskey']
 
-		# TODO: there might be a better way
-		""" В cookiestorage добавить поле "список id виртуалок", которые доступны этому юзеру с None по умолчанию
-			При каждом /list_vm его обновлять. Для проверки брать id виртуальной машины и проверять, есть ли в этом поле
-			Если поле None - вызывать принудительно лист и заполнять
-			Если не None и id нету - отказать, иначе пропустить
-		"""
 		resource = None
-		if 'resource' in request.json:
-			resource = request.json['resource']
+		if 'vmid' in request.json:
+			resource = request.json['vmid']
 
-		# TODO: implement
-		if sesskey == resource or resource is None:
+		if cookie_storage[sesskey]['vmlist'] is None:
+			list_vms()
+
+		if resource is None or resource not in cookie_storage[sesskey]['vmlist']:
 			return make_response(
 				jsonify(
 					{
@@ -135,7 +131,7 @@ def json_check(func):
 
 
 @app.errorhandler(404)
-def page_not_found():
+def page_not_found(e):
 	return make_response(
 		jsonify(
 			{
@@ -217,6 +213,7 @@ def login():
 		'domain': domain,
 		'username': username,
 		'serverkey': serverkey,
+		'vmlist': None,
 		'expiretime': cookieextime
 	}
 
@@ -263,7 +260,14 @@ def list_vms():
 
 	vm_list = []
 	for m in connectors.modules.values():
-		vm_list.extend(m.list_vms(domain, username))
+		vm_list.extend(m.methods['list'](domain, username))
+
+	# for authorization
+	if cookie_storage[sesskey]['vmlist'] is None:
+		cookie_storage[sesskey]['vmlist'] = []
+
+	for vm in vm_list:
+		cookie_storage[sesskey]['vmlist'].append(vm['vmid'])
 
 	return make_response(jsonify(
 		{
@@ -277,12 +281,41 @@ def list_vms():
 
 @app.route('/api/v1/vm', methods=['POST'])
 @authenticated
-@authorized
 @json_check
+@authorized
 def command_vm():
-	# TODO: Implement
-	print("POST - command VM")
-	return "OK", 200
+	data = request.get_json()
+
+	# check payload
+	if "vmid" not in data or "vmprovider" not in data or "action" not in data:
+		return make_response(jsonify(
+			{
+				"status": "error",
+				"reason": "payload",
+				"human_reason": "Request is invalid"
+			}
+		), 400)
+
+	# check that method is allowed for this VM provider
+	if data['action'] not in connectors.modules[data['vmprovider']].methods:
+		return make_response(jsonify(
+			{
+				"status": "error",
+				"reason": "notimplemented",
+				"human_reason": "Action is not available for this VM provider."
+			}
+		), 400)
+
+	if not connectors.modules[data['vmprovider']].methods[data['action']](data['vmid']):
+		return make_response(jsonify(
+			{
+				"status": "error",
+				"reason": "action",
+				"human_reason": "Error occurred during processing of request. Contact site owner."
+			}
+		), 500)
+
+	return '', 204
 
 
 if __name__ == '__main__':
