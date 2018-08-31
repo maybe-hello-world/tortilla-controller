@@ -1,0 +1,141 @@
+FORMAT: 1A
+HOST: vmm.avalon.ru/api/v1
+
+# tortilla-controller
+
+Tortilla-controller is an API that provides all information about available virtual machines and allow to send them additional controlling commands.
+
+## Login [/login]
+
+### Login [POST]
+
++ Request (application/json)
+    + Body
+    
+            {
+                "domain": "MICROSOFT",
+                "username": "Billy",
+                "password": "nooneknowsthatilovelinux"
+            }
+
++ Response 200 (application/json)
+    + Header
+    
+            Set-Cookie: sesskey=ba1131gon5n70f5nec6u4moy; Expires=Fri, 31-Aug-2018 04:25:56 GMT; Path=/
+   
+    + Body
+    
+            [
+                {
+                    "status": "success",
+                    "reason": "authenticated",
+                    "human_reason": "Successfully authenticated",
+                    "userkey": "uW3xzm8d"
+                }
+            ]
+        
++ Response 400 (application/json)
+    + Body
+    
+            [
+                {
+                    "status": "error",
+                    "reason": "payload",
+                    "human_reason": "Payload is invalid",
+                }
+            ]
+
++ Response 403 (application/json)
+    + Body
+    
+            [
+                {
+                    "status": "error",
+                    "reason": "unauthenticated",
+                    "human_reason": "Wrong domain, username or password",
+                }
+            ]
+
+## Virtual Machines [/vm]
+
+### List All VMs [GET]
+
++ Response 200 (application/json)
+
+        [
+            {
+                "name": "guacamole_db",
+                "status": "Running"
+                "vmid": "123456asd-321dasd-kjbsdf1-11",
+                "task": "Save state of virtual machine",
+                "taskstatus": "Failed",
+                "vmhost": "hv2.avalon.ru",
+                "protocol": "vmrdp",
+                "port": 3389,
+                "vmprovider": "hyper-v"
+            },
+            {
+                "name": "another_test_vm",
+                "status": "Saved"
+                "vmid": "123456asd-321dasd-kjbsdf1-01",
+                "task": "Save state of virtual machine",
+                "taskstatus": "Completed",
+                "vmhost": "xen1.avalon.ru",
+                "protocol": "ssh",
+                "port": 22,
+                "vmprovider": "xen"
+            }
+        ]
+
+### Send command to VM [POST]
+
++ Request
+
+    + Header
+    
+            Cookie: sesskey=ba1131gon5n70f5nec6u4moy; Expires=Fri, 31-Aug-2018 04:25:56 GMT; Path=/
+    
+    + Body
+        
+            {
+                "vmid": "123456asd-321dasd-kjbsdf1-11",
+                "vmprovider": "hyper-v",
+                "action": "start"
+            }
+            
++ Response 204
+
+            
++ Response 400 (application/json)
+    + Body
+    
+            [
+                {
+                    "status": "error",
+                    "reason": "command",
+                    "human_reason": "VM ID or VM Provider is incorrect"
+                }
+            ]
+
+
++ Response 401 (application/json)
+    + Body
+    
+            [
+                {
+                    "status": "error",
+                    "reason": "unauthenticated",
+                    "human_reason": "Unauthenticated access to protected resource"
+                }
+            ]
+            
++ Response 403 (application/json)
+    + Body
+    
+            [
+                {
+                    "status": "error",
+                    "reason": "unauthorized",
+                    "human_reason": "Unauthorized access to protected resource"
+                }
+            ]
