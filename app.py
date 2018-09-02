@@ -163,7 +163,7 @@ def page_not_found(e):
 			{
 				'status': 'error',
 				'reason': 'not-found',
-				'human_reason': e
+				'human_reason': str(e)
 			}),
 		404)
 
@@ -234,7 +234,7 @@ def login():
 
 	# generate random string to xor user password with and save with user token to database
 	serverkey = generate_random_string(len(password))
-	userkey = [chr(ord(password[i]) ^ ord(serverkey[i])) for i in range(len(password))]
+	userkey = [ord(password[i]) ^ ord(serverkey[i]) for i in range(len(password))]
 
 	cookieextime = datetime.datetime.now() + datetime.timedelta(hours=cookie_expire_time_hours)
 
@@ -284,12 +284,12 @@ def list_vms():
 	for m in connectors.modules.values():
 		vm_list.extend(m.methods['list'](domain, username))
 
-	# for authorization
+	# save VM info for authorization checks and for connecting to VMs
 	if cookie_storage[sesskey]['vmlist'] is None:
-		cookie_storage[sesskey]['vmlist'] = []
+		cookie_storage[sesskey]['vmlist'] = {}
 
 	for vm in vm_list:
-		cookie_storage[sesskey]['vmlist'].append(vm['vmid'])
+		cookie_storage[sesskey]['vmlist'][vm['vmid']] = vm
 
 	logger.debug("VM list returned to {}\\{}, list: {}".format(domain, username, vm_list))
 	return make_response(jsonify(
@@ -344,6 +344,34 @@ def command_vm():
 		), 500)
 
 	return '', 204
+
+
+@app.route('/api/v1/vminfo', methods=['GET'])
+@authenticated
+@authorized
+def get_vm_info():
+	sesskey = request.cookies['sesskey']
+	vmid = request.args.get("vmid")
+
+	print(sesskey)
+	print(vmid)
+
+	vminfo = cookie_storage[sesskey]["vmlist"][vmid]
+
+	return jsonify(vminfo), 200
+
+
+@app.route('/api/v1/key', methods=['GET'])
+@authenticated
+def get_server_key():
+	sesskey = request.cookies["sesskey"]
+	userinfo = cookie_storage[sesskey]
+
+	return jsonify({
+		"domain": userinfo["domain"],
+		"username": userinfo["username"],
+		"serverkey": userinfo["serverkey"]
+	}), 200
 
 
 if __name__ == '__main__':
