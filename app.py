@@ -353,9 +353,6 @@ def get_vm_info():
 	sesskey = request.cookies['sesskey']
 	vmid = request.args.get("vmid")
 
-	print(sesskey)
-	print(vmid)
-
 	vminfo = cookie_storage[sesskey]["vmlist"][vmid]
 
 	return jsonify(vminfo), 200
