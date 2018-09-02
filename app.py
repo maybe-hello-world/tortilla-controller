@@ -79,8 +79,20 @@ def authorized(func):
 		sesskey = request.cookies['sesskey']
 
 		resource = None
-		if 'vmid' in request.json:
-			resource = request.json['vmid']
+		if request.method == "POST":
+			if 'vmid' in request.json:
+				resource = request.json['vmid']
+		elif request.method == "GET":
+			resource = request.args.get("vmid", None)
+		else:
+			return make_response(
+				jsonify(
+					{
+						'status': 'error',
+						'reason': 'method',
+						'human_reason': 'Attempt to get authorized access to protected endpoint with not implemented method'
+					}),
+				500)
 
 		if cookie_storage[sesskey]['vmlist'] is None:
 			list_vms()
