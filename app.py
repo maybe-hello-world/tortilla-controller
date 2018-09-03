@@ -26,9 +26,11 @@ CORS(app, origins=config.origin_CORS_domain, supports_credentials=True)
 def clean_cookie():
 	threading.Timer(60.0 * cookie_clean_timer_minutes, clean_cookie).start()
 	curtime = datetime.datetime.now()
-	for i in cookie_storage.keys():
-		if cookie_storage[i]['expiretime'] < curtime:
-			del cookie_storage[i]
+
+	for k, v in cookie_storage.items():
+		if cookie_storage[k]['expiretime'] < curtime:
+			del cookie_storage[k]
+
 	logger.debug("Cookie cleaned")
 
 
