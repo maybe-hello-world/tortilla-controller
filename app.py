@@ -27,9 +27,9 @@ def clean_cookie():
 	threading.Timer(60.0 * cookie_clean_timer_minutes, clean_cookie).start()
 	curtime = datetime.datetime.now()
 
-	for k, v in cookie_storage.items():
-		if cookie_storage[k]['expiretime'] < curtime:
-			del cookie_storage[k]
+	for key in list(cookie_storage.keys()):
+		if cookie_storage[key]['expiretime'] < curtime:
+			del cookie_storage[key]
 
 	logger.debug("Cookie cleaned")
 
