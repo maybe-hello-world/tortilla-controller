@@ -1,26 +1,56 @@
 from flask import Flask, request, make_response, jsonify
-from flask_cors import CORS
 from werkzeug.exceptions import BadRequest
+import os
 import random
 import string
 import datetime
 import threading
-import config
 import connectors
 import logging
 
-cookie_clean_timer_minutes = config.cookie_clean_timer_minutes
-cookie_expire_time_hours = config.cookie_expire_time_hours
+loglevel = logging.INFO
+if "LOG_LEVEL" in os.environ:
+	levels = {
+		"DEBUG": logging.DEBUG,
+		"INFO": logging.INFO,
+		"WARNING": logging.WARNING,
+		"ERROR": logging.ERROR,
+		"CRITICAL": logging.CRITICAL
+	}
+	if os.environ["LOG_LEVEL"] in levels:
+		loglevel = levels[os.environ['LOG_LEVEL']]
 
-logging.basicConfig(filename=config.log_file, level=config.log_level, format=config.log_format)
+logging.basicConfig(level=loglevel, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("main")
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
+if "COOKIE_EXPIRE_TIME_HOURS" in os.environ:
+	try:
+		cookie_expire_time_hours = int(os.environ['COOKIE_EXPIRE_TIME_HOURS'])
+	except (ValueError, TypeError):
+		logger.exception("Value of COOKIE_EXPIRE_TIME_HOURS is erroneous.")
+else:
+	logger.debug("No COOKIE_EXPIRE_TIME_HOURS in env vars, set default value = 6")
+	cookie_expire_time_hours = 6
+
+if "COOKIE_CLEAN_TIMER_MINUTES" in os.environ:
+	try:
+		cookie_clean_timer_minutes = int(os.environ['COOKIE_CLEAN_TIMER_MINUTES'])
+	except (TypeError, ValueError):
+		logger.exception("Value of COOKIE_CLEAN_TIMER_MINUTES is erroneous.")
+else:
+	logger.debug("No COOKIE_CLEAN_TIMER_MINUTES in env vars, set default value = 20")
+	cookie_clean_timer_minutes = 20
+
+
 app = Flask(__name__)
 
-CORS(app, origins=config.origin_CORS_domain, supports_credentials=True)
+if "CORS_DOMAIN" in os.environ:
+	from flask_cors import CORS
+	CORS(app, origins=os.environ['CORS_DOMAIN'], supports_credentials=True)
+	logger.debug("CORS domain set to " + os.environ['CORS_DOMAIN'])
 
 
 def clean_cookie():
