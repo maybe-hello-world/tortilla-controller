@@ -1,5 +1,6 @@
 from flask import Flask, request, make_response, jsonify
 from werkzeug.exceptions import BadRequest
+from werkzeug.contrib.fixers import ProxyFix
 import os
 import random
 import string
@@ -403,5 +404,6 @@ def get_server_key():
 	}), 200
 
 
+app.wsgi_app = ProxyFix(app.wsgi_app)
 if __name__ == '__main__':
-	app.run(host="0.0.0.0", port=5876, debug=True)
+	app.run()
