@@ -47,9 +47,11 @@ else:
 
 
 app = Flask(__name__)
+cors = False
 
 if "CORS_DOMAIN" in os.environ:
 	from flask_cors import CORS
+	cors = True
 	CORS(app, origins=os.environ['CORS_DOMAIN'], supports_credentials=True)
 	logger.debug("CORS domain set to " + os.environ['CORS_DOMAIN'])
 
@@ -295,10 +297,11 @@ def login():
 	resp.set_cookie(key="sesskey", value=sesskey, expires=cookieextime)
 
 	# damn cross server requests
-	resp.headers['Access-Control-Allow-Credentials'] = 'true'
-	resp.headers['Access-Control-Allow-Origin'] = request.environ['HTTP_ORIGIN']
-	resp.headers['Access-Control-Allow-Methods'] = 'GET, POST'
-	resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+	if cors:
+		resp.headers['Access-Control-Allow-Credentials'] = 'true'
+		resp.headers['Access-Control-Allow-Origin'] = request.environ['HTTP_ORIGIN']
+		resp.headers['Access-Control-Allow-Methods'] = 'GET, POST'
+		resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
 
 	logger.info("{}\\{} successfully authenticated".format(domain, username))
 	return resp
