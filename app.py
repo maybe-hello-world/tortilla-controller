@@ -188,10 +188,8 @@ def internal_error(e):
 @json_check
 def login():
 
-	# TODO: LDAP
+	# TODO: check in LDAP
 	def check_credentials(_domain: str, _username: str, _password: str) -> bool:
-		if _domain.lower() == 'avalon' and _username.lower() == 'test' and _password == 'test':
-			return True
 		return False
 
 	def parse_domain(_userfield: str) -> (str, str):
