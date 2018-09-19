@@ -34,3 +34,7 @@ if "COOKIE_CLEAN_TIMER_MINUTES" in os.environ:
 		COOKIE_CLEAN_TIMER_MINUTES = int(os.environ['COOKIE_CLEAN_TIMER_MINUTES'])
 	except (TypeError, ValueError):
 		__logger.exception("Value of COOKIE_CLEAN_TIMER_MINUTES is erroneous.")
+
+DEFAULT_DOMAIN = "avalon.ru"
+if "DEFAULT_DOMAIN" in os.environ:
+	DEFAULT_DOMAIN = os.environ['DEFAULT_DOMAIN']

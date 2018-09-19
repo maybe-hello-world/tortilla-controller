@@ -23,6 +23,7 @@ logger.debug("COOKIE_CLEAN_TIMER_MINUTES = {}".format(cookie_clean_timer_minutes
 
 app = Flask(__name__)
 
+
 def clean_cookie():
 	threading.Timer(60.0 * cookie_clean_timer_minutes, clean_cookie).start()
 	curtime = datetime.datetime.now()
@@ -193,14 +194,28 @@ def login():
 			return True
 		return False
 
+	def parse_domain(_userfield: str) -> (str, str):
+		if '@' in _userfield:
+			_userfield = _userfield.split(sep='@')
+			_domain = str(_userfield[1])
+			_username = str(_userfield[0])
+		elif '\\' in _userfield:
+			_userfield = _userfield.split(sep='\\')
+			_domain = str(_userfield[0])
+			_username = str(_userfield[1])
+		else:
+			_username = str(_userfield)
+			_domain = config.DEFAULT_DOMAIN
+		return _domain.lower(), _username.lower()
+
 	def generate_random_string(n: int) -> str:
 		return ''.join(random.SystemRandom().choice(string.ascii_lowercase + string.digits) for _ in range(n))
 
 	data = request.get_json()
 
 	# check payload
-	if type(data) != dict or 'domain' not in data or 'username' not in data or 'password' not in data or \
-		type(data['domain']) != str or type(data['username']) != str or type(data['password']) != str:
+	if type(data) != dict or 'username' not in data or 'password' not in data or \
+		type(data['username']) != str or type(data['password']) != str:
 		logger.warning("Wrong payload in login request")
 		logger.debug("Payload data: " + str(data))
 		return make_response(
@@ -213,9 +228,11 @@ def login():
 			400)
 
 	# get payload
-	domain = data['domain']
-	username = data['username']
+	userfield = data['username']
 	password = data['password']
+
+	# divide username and domain
+	domain, username = parse_domain(userfield)
 
 	# check credentials
 	if not check_credentials(_domain=domain, _username=username, _password=password):
@@ -263,7 +280,7 @@ def login():
 
 	resp.set_cookie(key="sesskey", value=sesskey, expires=cookieextime)
 
-	logger.info("{} successfully authenticated".format(username))
+	logger.info("{}\\{} successfully authenticated".format(domain, username))
 	return resp
 
 
