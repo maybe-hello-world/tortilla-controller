@@ -1,12 +1,10 @@
 import requests
 import logging
-import os
+import config
 
 logger = logging.getLogger("scvmm")
 
-controller_url = "http://127.0.0.1:5555/api/"
-if "SCVMM_API" in os.environ:
-	controller_url = os.environ['SCVMM_API']
+controller_url = config.SCVMM_URL
 logger.info("SCVMM API url is set to " + controller_url)
 
 

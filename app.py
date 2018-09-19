@@ -1,60 +1,27 @@
 from flask import Flask, request, make_response, jsonify
 from werkzeug.exceptions import BadRequest
 from werkzeug.contrib.fixers import ProxyFix
-import os
 import random
 import string
 import datetime
 import threading
 import connectors
 import logging
+import config
 
-loglevel = logging.INFO
-if "LOG_LEVEL" in os.environ:
-	levels = {
-		"DEBUG": logging.DEBUG,
-		"INFO": logging.INFO,
-		"WARNING": logging.WARNING,
-		"ERROR": logging.ERROR,
-		"CRITICAL": logging.CRITICAL
-	}
-	if os.environ["LOG_LEVEL"] in levels:
-		loglevel = levels[os.environ['LOG_LEVEL']]
-
-logging.basicConfig(level=loglevel, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=config.LOGGING_LEVEL, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("main")
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-if "COOKIE_EXPIRE_TIME_HOURS" in os.environ:
-	try:
-		cookie_expire_time_hours = int(os.environ['COOKIE_EXPIRE_TIME_HOURS'])
-	except (ValueError, TypeError):
-		logger.exception("Value of COOKIE_EXPIRE_TIME_HOURS is erroneous.")
-else:
-	logger.debug("No COOKIE_EXPIRE_TIME_HOURS in env vars, set default value = 6")
-	cookie_expire_time_hours = 6
+cookie_expire_time_hours = config.COOKIE_EXPIRE_TIME_HOURS
+logger.debug("COOKIE_EXPIRE_TIME_HOURS = {}".format(cookie_expire_time_hours))
 
-if "COOKIE_CLEAN_TIMER_MINUTES" in os.environ:
-	try:
-		cookie_clean_timer_minutes = int(os.environ['COOKIE_CLEAN_TIMER_MINUTES'])
-	except (TypeError, ValueError):
-		logger.exception("Value of COOKIE_CLEAN_TIMER_MINUTES is erroneous.")
-else:
-	logger.debug("No COOKIE_CLEAN_TIMER_MINUTES in env vars, set default value = 20")
-	cookie_clean_timer_minutes = 20
-
+cookie_clean_timer_minutes = config.COOKIE_CLEAN_TIMER_MINUTES
+logger.debug("COOKIE_CLEAN_TIMER_MINUTES = {}".format(cookie_clean_timer_minutes))
 
 app = Flask(__name__)
-cors = False
-
-if "CORS_DOMAIN" in os.environ:
-	from flask_cors import CORS
-	cors = True
-	CORS(app, origins=os.environ['CORS_DOMAIN'], supports_credentials=True)
-	logger.debug("CORS domain set to " + os.environ['CORS_DOMAIN'])
-
 
 def clean_cookie():
 	threading.Timer(60.0 * cookie_clean_timer_minutes, clean_cookie).start()
@@ -296,14 +263,7 @@ def login():
 
 	resp.set_cookie(key="sesskey", value=sesskey, expires=cookieextime)
 
-	# damn cross server requests
-	if cors:
-		resp.headers['Access-Control-Allow-Credentials'] = 'true'
-		resp.headers['Access-Control-Allow-Origin'] = request.environ['HTTP_ORIGIN']
-		resp.headers['Access-Control-Allow-Methods'] = 'GET, POST'
-		resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-
-	logger.info("{}\\{} successfully authenticated".format(domain, username))
+	logger.info("{} successfully authenticated".format(username))
 	return resp
 
 
