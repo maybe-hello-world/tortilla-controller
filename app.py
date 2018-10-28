@@ -1,6 +1,8 @@
 from flask import Flask, request, make_response, jsonify
+from ldap3.core.exceptions import LDAPException
 from werkzeug.exceptions import BadRequest
 from werkzeug.contrib.fixers import ProxyFix
+import ldap3
 import random
 import string
 import datetime
@@ -160,7 +162,7 @@ def json_check(func):
 
 @app.errorhandler(404)
 def page_not_found(e):
-	logger.debug("404 page - " + request.url)
+	logger.debug("404 answer - " + request.url)
 	return make_response(
 		jsonify(
 			{
@@ -188,14 +190,32 @@ def internal_error(e):
 @json_check
 def login():
 
-	# TODO: check in LDAP
 	def check_credentials(_domain: str, _username: str, _password: str) -> bool:
-		return False
+		try:
+			server = ldap3.Server(config.LDAP_URL, mode=ldap3.IP_V4_PREFERRED, use_ssl=True)
+			conn = ldap3.Connection(
+				server,
+				user="{}\\{}".format(_domain, _username),
+				password=_password,
+				auto_referrals=False,
+				read_only=True,
+				authentication=ldap3.NTLM
+			)
+			if not conn.bind():
+				logger.info("User {}\\{} couldn't authenticate".format(_domain, _username))
+				return False
+			else:
+				logger.info("User {}\\{} authenticated successfully".format(_domain, _username))
+				conn.unbind()
+				return True
+		except LDAPException as e:
+			logger.warning("LDAP Error: {}".format(str(e)))
+			return False
 
 	def parse_domain(_userfield: str) -> (str, str):
 		if '@' in _userfield:
 			_userfield = _userfield.split(sep='@')
-			_domain = str(_userfield[1])
+			_domain = str(_userfield[1]).split('.')[-2]
 			_username = str(_userfield[0])
 		elif '\\' in _userfield:
 			_userfield = _userfield.split(sep='\\')

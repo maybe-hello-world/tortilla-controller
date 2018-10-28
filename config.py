@@ -4,9 +4,14 @@ import logging
 __logger = logging.getLogger("config_parser")
 
 # parsing SCVMM config
-SCVMM_URL = "http://127.0.0.1:5555/api"
+SCVMM_URL = "http://scvmm-api:5555/api"
 if "SCVMM_API" in os.environ:
 	SCVMM_URL = os.environ['SCVMM_API']
+
+# ldap server url
+LDAP_URL = "dc1.avalon.ru"
+if "LDAP_URL" in os.environ:
+	LDAP_URL = os.environ["LDAP_URL"]
 
 # parsing logging level
 LOGGING_LEVEL = logging.INFO
@@ -35,6 +40,6 @@ if "COOKIE_CLEAN_TIMER_MINUTES" in os.environ:
 	except (TypeError, ValueError):
 		__logger.exception("Value of COOKIE_CLEAN_TIMER_MINUTES is erroneous.")
 
-DEFAULT_DOMAIN = "avalon.ru"
+DEFAULT_DOMAIN = "AVALON"
 if "DEFAULT_DOMAIN" in os.environ:
 	DEFAULT_DOMAIN = os.environ['DEFAULT_DOMAIN']
