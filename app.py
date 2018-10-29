@@ -130,7 +130,6 @@ def json_check(func):
 		# check Content-Type
 		if not request.content_type == 'application/json':
 			logger.warning("Wrong Content-Type, url: {}".format(request.url))
-			logger.debug("Data: " + str(request.data))
 			return make_response(
 				jsonify(
 					{
@@ -145,7 +144,6 @@ def json_check(func):
 			request.get_json()
 		except BadRequest:
 			logger.warning("Invalid content, url: {}".format(request.url))
-			logger.debug("Data: " + str(request.data) + str(request.form))
 			return make_response(
 				jsonify(
 					{
@@ -202,10 +200,8 @@ def login():
 				authentication=ldap3.NTLM
 			)
 			if not conn.bind():
-				logger.info("User {}\\{} couldn't authenticate".format(_domain, _username))
 				return False
 			else:
-				logger.info("User {}\\{} authenticated successfully".format(_domain, _username))
 				conn.unbind()
 				return True
 		except LDAPException as e:
