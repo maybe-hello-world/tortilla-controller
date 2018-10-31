@@ -1,8 +1,11 @@
 import requests
 import logging
+import config
 
-controller_url = "http://127.0.0.1:5555/api/"
 logger = logging.getLogger("scvmm")
+
+controller_url = config.SCVMM_URL
+logger.info("SCVMM API url is set to " + controller_url)
 
 
 def list_vms(domain: str, username: str) -> list:

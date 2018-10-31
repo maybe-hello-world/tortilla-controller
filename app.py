@@ -1,56 +1,29 @@
 from flask import Flask, request, make_response, jsonify
+from ldap3.core.exceptions import LDAPException
 from werkzeug.exceptions import BadRequest
-import os
+from werkzeug.contrib.fixers import ProxyFix
+import ldap3
 import random
 import string
 import datetime
 import threading
 import connectors
 import logging
+import config
 
-loglevel = logging.INFO
-if "LOG_LEVEL" in os.environ:
-	levels = {
-		"DEBUG": logging.DEBUG,
-		"INFO": logging.INFO,
-		"WARNING": logging.WARNING,
-		"ERROR": logging.ERROR,
-		"CRITICAL": logging.CRITICAL
-	}
-	if os.environ["LOG_LEVEL"] in levels:
-		loglevel = levels[os.environ['LOG_LEVEL']]
-
-logging.basicConfig(level=loglevel, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=config.LOGGING_LEVEL, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("main")
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-if "COOKIE_EXPIRE_TIME_HOURS" in os.environ:
-	try:
-		cookie_expire_time_hours = int(os.environ['COOKIE_EXPIRE_TIME_HOURS'])
-	except (ValueError, TypeError):
-		logger.exception("Value of COOKIE_EXPIRE_TIME_HOURS is erroneous.")
-else:
-	logger.debug("No COOKIE_EXPIRE_TIME_HOURS in env vars, set default value = 6")
-	cookie_expire_time_hours = 6
+cookie_expire_time_hours = config.COOKIE_EXPIRE_TIME_HOURS
+logger.debug("COOKIE_EXPIRE_TIME_HOURS = {}".format(cookie_expire_time_hours))
 
-if "COOKIE_CLEAN_TIMER_MINUTES" in os.environ:
-	try:
-		cookie_clean_timer_minutes = int(os.environ['COOKIE_CLEAN_TIMER_MINUTES'])
-	except (TypeError, ValueError):
-		logger.exception("Value of COOKIE_CLEAN_TIMER_MINUTES is erroneous.")
-else:
-	logger.debug("No COOKIE_CLEAN_TIMER_MINUTES in env vars, set default value = 20")
-	cookie_clean_timer_minutes = 20
-
+cookie_clean_timer_minutes = config.COOKIE_CLEAN_TIMER_MINUTES
+logger.debug("COOKIE_CLEAN_TIMER_MINUTES = {}".format(cookie_clean_timer_minutes))
 
 app = Flask(__name__)
-
-if "CORS_DOMAIN" in os.environ:
-	from flask_cors import CORS
-	CORS(app, origins=os.environ['CORS_DOMAIN'], supports_credentials=True)
-	logger.debug("CORS domain set to " + os.environ['CORS_DOMAIN'])
 
 
 def clean_cookie():
@@ -157,7 +130,6 @@ def json_check(func):
 		# check Content-Type
 		if not request.content_type == 'application/json':
 			logger.warning("Wrong Content-Type, url: {}".format(request.url))
-			logger.debug("Data: " + str(request.data))
 			return make_response(
 				jsonify(
 					{
@@ -172,7 +144,6 @@ def json_check(func):
 			request.get_json()
 		except BadRequest:
 			logger.warning("Invalid content, url: {}".format(request.url))
-			logger.debug("Data: " + str(request.data) + str(request.form))
 			return make_response(
 				jsonify(
 					{
@@ -189,7 +160,7 @@ def json_check(func):
 
 @app.errorhandler(404)
 def page_not_found(e):
-	logger.debug("404 page - " + request.url)
+	logger.debug("404 answer - " + request.url)
 	return make_response(
 		jsonify(
 			{
@@ -217,11 +188,39 @@ def internal_error(e):
 @json_check
 def login():
 
-	# TODO: LDAP
 	def check_credentials(_domain: str, _username: str, _password: str) -> bool:
-		if _domain.lower() == 'avalon' and _username.lower() == 'test' and _password == 'test':
-			return True
-		return False
+		try:
+			server = ldap3.Server(config.LDAP_URL, mode=ldap3.IP_V4_PREFERRED, use_ssl=True)
+			conn = ldap3.Connection(
+				server,
+				user="{}\\{}".format(_domain, _username),
+				password=_password,
+				auto_referrals=False,
+				read_only=True,
+				authentication=ldap3.NTLM
+			)
+			if not conn.bind():
+				return False
+			else:
+				conn.unbind()
+				return True
+		except LDAPException as e:
+			logger.warning("LDAP Error: {}".format(str(e)))
+			return False
+
+	def parse_domain(_userfield: str) -> (str, str):
+		if '@' in _userfield:
+			_userfield = _userfield.split(sep='@')
+			_domain = str(_userfield[1]).split('.')[-2]
+			_username = str(_userfield[0])
+		elif '\\' in _userfield:
+			_userfield = _userfield.split(sep='\\')
+			_domain = str(_userfield[0])
+			_username = str(_userfield[1])
+		else:
+			_username = str(_userfield)
+			_domain = config.DEFAULT_DOMAIN
+		return _domain.lower(), _username.lower()
 
 	def generate_random_string(n: int) -> str:
 		return ''.join(random.SystemRandom().choice(string.ascii_lowercase + string.digits) for _ in range(n))
@@ -229,8 +228,8 @@ def login():
 	data = request.get_json()
 
 	# check payload
-	if type(data) != dict or 'domain' not in data or 'username' not in data or 'password' not in data or \
-		type(data['domain']) != str or type(data['username']) != str or type(data['password']) != str:
+	if type(data) != dict or 'username' not in data or 'password' not in data or \
+		type(data['username']) != str or type(data['password']) != str:
 		logger.warning("Wrong payload in login request")
 		logger.debug("Payload data: " + str(data))
 		return make_response(
@@ -243,9 +242,11 @@ def login():
 			400)
 
 	# get payload
-	domain = data['domain']
-	username = data['username']
+	userfield = data['username']
 	password = data['password']
+
+	# divide username and domain
+	domain, username = parse_domain(userfield)
 
 	# check credentials
 	if not check_credentials(_domain=domain, _username=username, _password=password):
@@ -292,12 +293,6 @@ def login():
 		200)
 
 	resp.set_cookie(key="sesskey", value=sesskey, expires=cookieextime)
-
-	# damn cross server requests
-	resp.headers['Access-Control-Allow-Credentials'] = 'true'
-	resp.headers['Access-Control-Allow-Origin'] = request.environ['HTTP_ORIGIN']
-	resp.headers['Access-Control-Allow-Methods'] = 'GET, POST'
-	resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
 
 	logger.info("{}\\{} successfully authenticated".format(domain, username))
 	return resp
@@ -403,5 +398,6 @@ def get_server_key():
 	}), 200
 
 
+app.wsgi_app = ProxyFix(app.wsgi_app)
 if __name__ == '__main__':
-	app.run(host="0.0.0.0", port=5876, debug=True)
+	app.run()
