@@ -316,7 +316,7 @@ def list_vms():
 	for vm in vm_list:
 		cookie_storage[sesskey]['vmlist'][vm['vmid']] = vm
 
-	logger.debug("VM list returned to {}\\{}, list: {}".format(domain, username, vm_list))
+	logger.debug("VM list returned to {}\\{}, length of list: {} elements".format(domain, username, len(vm_list)))
 	return make_response(jsonify(
 		{
 			"status": "success",
