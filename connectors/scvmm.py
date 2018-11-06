@@ -16,7 +16,7 @@ def list_vms(domain: str, username: str) -> list:
 	}
 
 	try:
-		resp = requests.get(url, params=params, timeout=5)
+		resp = requests.get(url, params=params, timeout=10)
 		data = resp.json()
 		vm_list = []
 
@@ -45,7 +45,7 @@ def start(vmid: str) -> bool:
 	url = controller_url + "vm/start"
 	payload = {'vmid': vmid}
 	try:
-		resp = requests.post(url, data=payload, timeout=5)
+		resp = requests.post(url, data=payload, timeout=10)
 		logger.info(str(vmid) + " start request sent, status: " + str(resp.status_code))
 		return resp.status_code == 204
 	except requests.RequestException as e:
@@ -57,7 +57,7 @@ def shutdown(vmid: str) -> bool:
 	url = controller_url + "vm/shutdown"
 	payload = {'vmid': vmid}
 	try:
-		resp = requests.post(url, data=payload, timeout=5)
+		resp = requests.post(url, data=payload, timeout=10)
 		logger.info(str(vmid) + " shutdown request sent, status: " + str(resp.status_code))
 		return resp.status_code == 204
 	except requests.RequestException as e:
@@ -69,7 +69,7 @@ def power_off(vmid: str) -> bool:
 	url = controller_url + "vm/poweroff"
 	payload = {'vmid': vmid}
 	try:
-		resp = requests.post(url, data=payload, timeout=5)
+		resp = requests.post(url, data=payload, timeout=10)
 		logger.info(str(vmid) + " poweroff request sent, status: " + str(resp.status_code))
 		return resp.status_code == 204
 	except requests.RequestException as e:
@@ -81,7 +81,7 @@ def save(vmid: str) -> bool:
 	url = controller_url + "vm/save"
 	payload = {'vmid': vmid}
 	try:
-		resp = requests.post(url, data=payload, timeout=5)
+		resp = requests.post(url, data=payload, timeout=10)
 		logger.info(str(vmid) + " save request sent, status: " + str(resp.status_code))
 		return resp.status_code == 204
 	except requests.RequestException as e:
