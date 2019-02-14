@@ -228,8 +228,8 @@ def login():
 	data = request.get_json()
 
 	# check payload
-	if type(data) != dict or 'username' not in data or 'password' not in data or \
-		type(data['username']) != str or type(data['password']) != str:
+	if type(data) != dict or 'username' not in data or 'password' not in data or "serverkey" not in data or \
+		type(data['username']) != str or type(data['password']) != str or type(data['serverkey']) != str:
 		logger.warning("Wrong payload in login request")
 		logger.debug("Payload data: " + str(data))
 		return make_response(
@@ -266,8 +266,7 @@ def login():
 		sesskey = generate_random_string(24)
 
 	# generate random string to xor user password with and save with user token to database
-	serverkey = generate_random_string(len(password))
-	userkey = [ord(password[i]) ^ ord(serverkey[i]) for i in range(len(password))]
+	serverkey = data['serverkey']
 
 	cookieextime = datetime.datetime.now() + datetime.timedelta(hours=cookie_expire_time_hours)
 
@@ -287,8 +286,7 @@ def login():
 			{
 				'status': 'success',
 				'reason': 'authenticated',
-				'human_reason': 'Successfully authenticated',
-				'userkey': userkey
+				'human_reason': 'Successfully authenticated'
 			}),
 		200)
 
@@ -318,7 +316,7 @@ def list_vms():
 	for vm in vm_list:
 		cookie_storage[sesskey]['vmlist'][vm['vmid']] = vm
 
-	logger.debug("VM list returned to {}\\{}, list: {}".format(domain, username, vm_list))
+	logger.debug("VM list returned to {}\\{}, length of list: {} elements".format(domain, username, len(vm_list)))
 	return make_response(jsonify(
 		{
 			"status": "success",
