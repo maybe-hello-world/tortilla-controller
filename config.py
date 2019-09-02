@@ -8,6 +8,19 @@ SCVMM_URL = "http://scvmm-api:5555/api"
 if "SCVMM_API" in os.environ:
 	SCVMM_URL = os.environ['SCVMM_API']
 
+# parsing redis address
+REDIS_HOST = "localhost"
+if "REDIS_HOST" in os.environ:
+	REDIS_HOST = os.environ['REDIS_HOST']
+
+# parsing redis address
+REDIS_PORT = 6379
+if "REDIS_PORT" in os.environ:
+	try:
+		REDIS_PORT = int(os.environ['REDIS_PORT'])
+	except (TypeError, ValueError):
+		__logger.exception("Value of REDIS_PORT is erroneous.")
+
 # ldap server url
 LDAP_URL = "dc1.avalon.ru"
 if "LDAP_URL" in os.environ:
@@ -32,13 +45,6 @@ if "COOKIE_EXPIRE_TIME_HOURS" in os.environ:
 		COOKIE_EXPIRE_TIME_HOURS = int(os.environ['COOKIE_EXPIRE_TIME_HOURS'])
 	except (ValueError, TypeError):
 		__logger.exception("Value of COOKIE_EXPIRE_TIME_HOURS is erroneous.")
-
-COOKIE_CLEAN_TIMER_MINUTES = 20
-if "COOKIE_CLEAN_TIMER_MINUTES" in os.environ:
-	try:
-		COOKIE_CLEAN_TIMER_MINUTES = int(os.environ['COOKIE_CLEAN_TIMER_MINUTES'])
-	except (TypeError, ValueError):
-		__logger.exception("Value of COOKIE_CLEAN_TIMER_MINUTES is erroneous.")
 
 DEFAULT_DOMAIN = "AVALON"
 if "DEFAULT_DOMAIN" in os.environ:
