@@ -1,15 +1,16 @@
 from flask import Flask, request, make_response, jsonify
 from ldap3.core.exceptions import LDAPException
 from werkzeug.exceptions import BadRequest
-from werkzeug.contrib.fixers import ProxyFix
+from werkzeug.middleware.proxy_fix import ProxyFix
 import ldap3
 import random
 import string
 import datetime
-import threading
 import connectors
 import logging
 import config
+import redis
+import json
 
 logging.basicConfig(level=config.LOGGING_LEVEL, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("main")
@@ -17,28 +18,12 @@ logger = logging.getLogger("main")
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
+global_r = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT)
+
 cookie_expire_time_hours = config.COOKIE_EXPIRE_TIME_HOURS
 logger.debug("COOKIE_EXPIRE_TIME_HOURS = {}".format(cookie_expire_time_hours))
 
-cookie_clean_timer_minutes = config.COOKIE_CLEAN_TIMER_MINUTES
-logger.debug("COOKIE_CLEAN_TIMER_MINUTES = {}".format(cookie_clean_timer_minutes))
-
 app = Flask(__name__)
-
-
-def clean_cookie():
-	threading.Timer(60.0 * cookie_clean_timer_minutes, clean_cookie).start()
-	curtime = datetime.datetime.now()
-
-	for key in list(cookie_storage.keys()):
-		if cookie_storage[key]['expiretime'] < curtime:
-			del cookie_storage[key]
-
-	logger.debug("Cookie cleaned")
-
-
-cookie_storage = {}
-clean_cookie()
 
 
 def authenticated(func):
@@ -52,8 +37,7 @@ def authenticated(func):
 	"""
 	def wrapper(*args, **kwargs):
 		# check if the user is logged in
-
-		if "sesskey" not in request.cookies or request.cookies['sesskey'] not in cookie_storage:
+		if "sesskey" not in request.cookies or not global_r.exists(request.cookies['sesskey']):
 			logger.debug("Unauthenticated request to " + request.url)
 			return make_response(
 				jsonify(
@@ -99,10 +83,12 @@ def authorized(func):
 					}),
 				500)
 
-		if cookie_storage[sesskey]['vmlist'] is None:
+		userdata = global_r.get(sesskey)
+		vmlist = json.loads(userdata)['vmlist']
+		if vmlist is None:
 			list_vms()
 
-		if resource is None or resource not in cookie_storage[sesskey]['vmlist']:
+		if resource is None or resource not in vmlist:
 			logger.debug("Unauthorized request to " + request.url)
 			return make_response(
 				jsonify(
@@ -262,7 +248,7 @@ def login():
 
 	# generate unique token (cookie auth)
 	sesskey = generate_random_string(24)
-	while sesskey in cookie_storage:
+	while global_r.exists(sesskey):
 		sesskey = generate_random_string(24)
 
 	# generate random string to xor user password with and save with user token to database
@@ -275,11 +261,11 @@ def login():
 		'domain': domain,
 		'username': username,
 		'serverkey': serverkey,
-		'vmlist': None,
-		'expiretime': cookieextime
+		'vmlist': None
 	}
 
-	cookie_storage[sesskey] = data
+	data = json.dumps(data)
+	global_r.set(sesskey, data, ex=cookie_expire_time_hours*3600)
 
 	resp = make_response(
 		jsonify(
@@ -301,7 +287,8 @@ def login():
 def list_vms():
 	sesskey = request.cookies['sesskey']
 
-	userdata = cookie_storage[sesskey]
+	userdata = global_r.get(sesskey)
+	userdata = json.loads(userdata)
 	domain = userdata['domain']
 	username = userdata['username']
 
@@ -310,11 +297,14 @@ def list_vms():
 		vm_list.extend(m.methods['list'](domain, username))
 
 	# save VM info for authorization checks and for connecting to VMs
-	if cookie_storage[sesskey]['vmlist'] is None:
-		cookie_storage[sesskey]['vmlist'] = {}
+	if userdata['vmlist'] is None:
+		userdata['vmlist'] = {}
 
 	for vm in vm_list:
-		cookie_storage[sesskey]['vmlist'][vm['vmid']] = vm
+		userdata['vmlist'][vm['vmid']] = vm
+
+	remaining_ttl = global_r.ttl(sesskey)
+	global_r.set(sesskey, json.dumps(userdata), ex=remaining_ttl)
 
 	logger.debug("VM list returned to {}\\{}, length of list: {} elements".format(domain, username, len(vm_list)))
 	return make_response(jsonify(
@@ -378,7 +368,7 @@ def get_vm_info():
 	sesskey = request.cookies['sesskey']
 	vmid = request.args.get("vmid")
 
-	vminfo = cookie_storage[sesskey]["vmlist"][vmid]
+	vminfo = json.loads(global_r.get(sesskey))["vmlist"][vmid]
 
 	return jsonify(vminfo), 200
 
@@ -387,7 +377,7 @@ def get_vm_info():
 @authenticated
 def get_server_key():
 	sesskey = request.cookies["sesskey"]
-	userinfo = cookie_storage[sesskey]
+	userinfo = json.loads(global_r.get(sesskey))
 
 	return jsonify({
 		"domain": userinfo["domain"],
@@ -398,4 +388,4 @@ def get_server_key():
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
 if __name__ == '__main__':
-	app.run()
+	app.run(host='0.0.0.0', port='5678', debug=True)
