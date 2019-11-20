@@ -1,6 +1,7 @@
-flask
-werkzeug
+aiohttp
+fastapi
 requests
 ldap3
-gunicorn
+uvicorn
 redis
+starlette

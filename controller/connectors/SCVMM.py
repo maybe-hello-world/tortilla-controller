@@ -1,5 +1,5 @@
 import logging
-import requests
+import aiohttp
 from typing import Tuple
 
 from controller.data.VM import VM
@@ -18,19 +18,22 @@ class SCVMMConnector(Connector):
         self.SCVMM_URL = url
         self.logger = logging.getLogger("scvmm")
         self.logger.info("SCVMM API url is set to " + self.SCVMM_URL)
-        self.timeout = timeout
+        self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout, sock_read=timeout*4))
 
-    def __send_get_request(self, url: str, payload: dict) -> bool:
+    def __del__(self):
+        self.session.close()
+
+    async def __send_get_request(self, url: str, payload: dict) -> bool:
         try:
-            resp = requests.post(url, data=payload, timeout=self.timeout)
-            self.logger.info(f"Request to {url}, result: {resp.status_code}.")
-            self.logger.debug(f"Payload: {payload}")
-            return 200 <= resp.status_code < 300
+            async with self.session.post(url=url, json=payload) as resp:
+                self.logger.info(f"Request to {url}, result: {resp.status}.")
+                self.logger.debug(f"Payload: {payload}")
+                return 200 <= resp.status < 300
         except Exception as e:
             self.logger.exception(str(e))
             return False
 
-    def list_vms(self, domain: str, username: str) -> Tuple[VM, ...]:
+    async def list_vms(self, domain: str, username: str) -> Tuple[VM, ...]:
         url = self.SCVMM_URL + "vm/list"
         params = {
             'domain': domain,
@@ -38,11 +41,12 @@ class SCVMMConnector(Connector):
         }
 
         try:
-            resp = requests.get(url, params=params, timeout=self.timeout)
-            if resp.status_code >= 300 or resp.status_code < 200:
-                return ()
+            async with self.session.get(url=url, params=params) as resp:
+                if resp.status >= 300 or resp.status < 200:
+                    return ()
 
-            data = resp.json()
+                data = await resp.json()
+
             vm_list = tuple(
                 VM(
                     name=x.get('Name', "-"),
@@ -65,31 +69,31 @@ class SCVMMConnector(Connector):
             self.logger.exception(e)
             return ()
 
-    def start(self, vmid: str) -> bool:
+    async def start(self, vmid: str) -> bool:
         url = self.SCVMM_URL + "vm/start"
         payload = {'vmid': vmid}
-        return self.__send_get_request(url=url, payload=payload)
+        return await self.__send_get_request(url=url, payload=payload)
 
-    def shutdown(self, vmid: str) -> bool:
+    async def shutdown(self, vmid: str) -> bool:
         url = self.SCVMM_URL + "vm/shutdown"
         payload = {'vmid': vmid}
-        return self.__send_get_request(url=url, payload=payload)
+        return await self.__send_get_request(url=url, payload=payload)
 
-    def poweroff(self, vmid: str) -> bool:
+    async def poweroff(self, vmid: str) -> bool:
         url = self.SCVMM_URL + "vm/poweroff"
         payload = {'vmid': vmid}
-        return self.__send_get_request(url=url, payload=payload)
+        return await self.__send_get_request(url=url, payload=payload)
 
-    def save(self, vmid: str) -> bool:
+    async def save(self, vmid: str) -> bool:
         url = self.SCVMM_URL + "vm/save"
         payload = {'vmid': vmid}
-        return self.__send_get_request(url=url, payload=payload)
+        return await self.__send_get_request(url=url, payload=payload)
 
-    def list_checkpoints(self, *a, **kw) -> tuple:
+    async def list_checkpoints(self, *a, **kw) -> tuple:
         raise NotImplementedError
 
-    def create_checkpoint(self, *a, **kw) -> bool:
+    async def create_checkpoint(self, *a, **kw) -> bool:
         raise NotImplementedError
 
-    def remove_checkpoint(self, *a, **kw) -> bool:
+    async def remove_checkpoint(self, *a, **kw) -> bool:
         raise NotImplementedError
