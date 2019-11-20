@@ -1,3 +1,5 @@
+from typing import Callable, Awaitable
+
 from fastapi import FastAPI
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -28,7 +30,7 @@ app = FastAPI(
 )
 
 
-def authenticated(func):
+def authenticated(func: Callable[..., Awaitable]):
 	"""
 	Decorator for protecting methods and pages.
 	Check if user is already logged in by having special header.
@@ -51,11 +53,11 @@ def authenticated(func):
 					}
 			)
 
-		return func(*args, **kwargs)
+		return await func(*args, request=request, **kwargs)
 	return wrapper
 
 
-def authorized(func):
+def authorized(func: Callable[..., Awaitable]):
 	"""
 	Decorator for protecting methods and pages.
 	Check if user have privileges to access requested resource
@@ -103,11 +105,11 @@ def authorized(func):
 					}
 			)
 
-		return func(*args, **kwargs)
+		return await func(*args, request=request, **kwargs)
 	return wrapper
 
 
-def json_check(func):
+def json_check(func: Callable[..., Awaitable]):
 	"""
 	Decorator for checking payload (if Content-Type is set and JSON is readable)
 
@@ -142,7 +144,7 @@ def json_check(func):
 					}
 			)
 
-		return func(*args, **kwargs)
+		return await func(*args, request=request, **kwargs)
 	return wrapper
 
 
@@ -156,11 +158,17 @@ async def __init__():
 	global_r = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT)
 	logger.debug(f"Redis instantiated, host: {config.REDIS_HOST}, port: {config.REDIS_PORT}")
 
+	for c in connectors.modules.values():
+		await c.async_open()
+
 
 @app.on_event("shutdown")
 async def __del__():
 	global global_r
 	global_r.close()
+
+	for c in connectors.modules.values():
+		await c.async_close()
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -208,9 +216,11 @@ async def login(request: Request):
 
 	def parse_domain(_userfield: str) -> (str, str):
 		if '@' in _userfield:
-			_userfield = _userfield.split(sep='@')
-			_domain = str(_userfield[1]).split('.')[-2]
-			_username = str(_userfield[0])
+			_username, _domain = _userfield.split(sep='@', maxsplit=1)
+			_username = str(_username)		# 'someone@' handling
+			_domain = str(_domain)
+			if '.' in _domain:
+				_domain = _domain[:_domain.rindex('.')]
 		elif '\\' in _userfield:
 			_userfield = _userfield.split(sep='\\')
 			_domain = str(_userfield[0])
@@ -312,7 +322,7 @@ async def list_vms(request: Request):
 		userdata['vmlist'] = {}
 
 	for vm in vm_list:
-		userdata['vmlist'][vm.vmid] = vm
+		userdata['vmlist'][vm.vmid] = dataclasses.asdict(vm)
 
 	remaining_ttl = global_r.ttl(sesskey)
 	global_r.set(sesskey, json.dumps(userdata), ex=remaining_ttl)
