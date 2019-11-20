@@ -1,6 +1,5 @@
 aiohttp
 fastapi
-requests
 ldap3
 uvicorn
 redis
