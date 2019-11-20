@@ -2,8 +2,8 @@ import logging
 import requests
 from typing import Tuple
 
-from data.VM import VM
-from connectors.Connector import Connector
+from controller.data.VM import VM
+from controller.connectors.Connector import Connector
 
 
 class SCVMMConnector(Connector):

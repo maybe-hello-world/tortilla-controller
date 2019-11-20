@@ -7,9 +7,8 @@ import ldap3
 import random
 import string
 import datetime
-import connectors
+from controller import connectors, config
 import logging
-import config
 import redis
 import json
 

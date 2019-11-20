@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from typing import Tuple
-from data.VM import VM
+from controller.data import VM
 
 
 class Connector(ABC):
