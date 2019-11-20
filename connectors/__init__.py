@@ -1,7 +1,10 @@
-__all__ = ['scvmm']
+__all__ = ['SCVMM']
 
-import connectors.scvmm
+import config
+import connectors.SCVMM
+from connectors.Connector import Connector
+from typing import Mapping
 
-modules = {
-	"scvmm": connectors.scvmm
+modules: Mapping[str, Connector] = {
+	"scvmm": connectors.SCVMM.SCVMMConnector(config.SCVMM_URL)
 }

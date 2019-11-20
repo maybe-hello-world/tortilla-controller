@@ -2,6 +2,7 @@ from flask import Flask, request, make_response, jsonify
 from ldap3.core.exceptions import LDAPException
 from werkzeug.exceptions import BadRequest
 from werkzeug.middleware.proxy_fix import ProxyFix
+import dataclasses
 import ldap3
 import random
 import string
@@ -294,14 +295,14 @@ def list_vms():
 
 	vm_list = []
 	for m in connectors.modules.values():
-		vm_list.extend(m.methods['list'](domain, username))
+		vm_list.extend(m.list_vms(domain, username))
 
 	# save VM info for authorization checks and for connecting to VMs
 	if userdata['vmlist'] is None:
 		userdata['vmlist'] = {}
 
 	for vm in vm_list:
-		userdata['vmlist'][vm['vmid']] = vm
+		userdata['vmlist'][vm.vmid] = vm
 
 	remaining_ttl = global_r.ttl(sesskey)
 	global_r.set(sesskey, json.dumps(userdata), ex=remaining_ttl)
@@ -312,7 +313,7 @@ def list_vms():
 			"status": "success",
 			"reason": "success",
 			"human_reason": "Successfully got list of VMs",
-			"list": vm_list
+			"list": [dataclasses.asdict(x) for x in vm_list]
 		}
 	), 200)
 
@@ -322,10 +323,27 @@ def list_vms():
 @json_check
 @authorized
 def command_vm():
+	available_actions = {
+		"list": "list_vms",
+		"list_vms": "list_vms",
+		"start": "start",
+		"shutdown": "shutdown",
+		"poweroff": "poweroff",
+		"save": "save",
+		"remove_checkpoint": "remove_checkpoint",
+		"create_checkpoint": "create_checkpoint",
+		"list_checkpoints": "list_checkpoints"
+	}
+
 	data = request.get_json()
 
 	# check payload
-	if "vmid" not in data or "vmprovider" not in data or "action" not in data:
+	if (
+			"vmid" not in data or
+			"vmprovider" not in data or
+			"action" not in data or
+			data["action"] not in available_actions
+	):
 		logger.warning("Wrong payload in VM action request. Data: " + str(data))
 		return make_response(jsonify(
 			{
@@ -335,9 +353,17 @@ def command_vm():
 			}
 		), 400)
 
-	# check that method is allowed for this VM provider
-	if data['action'] not in connectors.modules[data['vmprovider']].methods:
-		logger.warning("Unimplemented action requested, action: {}, provider: {}".format(data['action'], data['vmprovider']))
+	required_action = available_actions[data['action']]
+	vmid = data['vmid']
+	vmprovider = data['vmprovider']
+
+	try:
+		connector = connectors.modules[vmprovider]
+		action = getattr(connector, required_action)
+		result = action(vmid)
+	except NotImplementedError:
+		logger.warning(
+			"Unimplemented action requested, action: {}, provider: {}".format(data['action'], data['vmprovider']))
 		return make_response(jsonify(
 			{
 				"status": "error",
@@ -346,8 +372,8 @@ def command_vm():
 			}
 		), 400)
 
-	if not connectors.modules[data['vmprovider']].methods[data['action']](data['vmid']):
-		logger.error("Error occurred during executing VM action, action: {}, vmid: {}, provider: {}".format(
+	if not result:
+		logger.warning("Error occurred during executing VM action, action: {}, vmid: {}, provider: {}".format(
 			data['action'], data['vmid'], data['vmprovider'])
 		)
 		return make_response(jsonify(
