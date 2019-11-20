@@ -1,17 +1,12 @@
-FROM python:3.7-alpine
+FROM tiangolo/uvicorn-gunicorn-fastapi:python3.7-alpine3.8
 LABEL maintainer="maybe.hello.world@gmail.com"
-
-WORKDIR /usr/src/app
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN apk update && apk add py-gunicorn
-
-COPY app.py ./
-COPY config.py ./
-COPY connectors ./connectors
-
+ENV MODULE_NAME="controller.main"
+ENV PORT=5876
 EXPOSE 5876
 
-CMD ["/usr/local/bin/gunicorn",  "-b", "0.0.0.0:5876", "app:app"]
+COPY . /app
+
