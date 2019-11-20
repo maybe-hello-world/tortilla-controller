@@ -45,7 +45,7 @@ def start(vmid: str) -> bool:
 	url = controller_url + "vm/start"
 	payload = {'vmid': vmid}
 	try:
-		resp = requests.post(url, data=payload, timeout=10)
+		resp = requests.post(url, data=payload, timeout=25)
 		logger.info(str(vmid) + " start request sent, status: " + str(resp.status_code))
 		return resp.status_code == 204
 	except requests.RequestException as e:
