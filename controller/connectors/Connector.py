@@ -50,3 +50,13 @@ class Connector(ABC):
     async def remove_checkpoint(self, *a, **kw) -> bool:
         """Remove specified checkpoint"""
         pass
+
+    @abstractmethod
+    async def async_close(self):
+        """Is called before program exit to let you finish all async tasks"""
+        pass
+
+    @abstractmethod
+    async def async_open(self):
+        """Is called before program start to let you instantiate anything that needs async loop"""
+        pass
