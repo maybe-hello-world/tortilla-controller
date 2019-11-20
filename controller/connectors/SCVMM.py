@@ -18,10 +18,13 @@ class SCVMMConnector(Connector):
         self.SCVMM_URL = url
         self.logger = logging.getLogger("scvmm")
         self.logger.info("SCVMM API url is set to " + self.SCVMM_URL)
-        self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout, sock_read=timeout*4))
+        self.timeout = timeout
 
-    def __del__(self):
-        self.session.close()
+    async def async_open(self):
+        self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout, sock_read=self.timeout * 4))
+
+    async def async_close(self):
+        await self.session.close()
 
     async def __send_get_request(self, url: str, payload: dict) -> bool:
         try:
