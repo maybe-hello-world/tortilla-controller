@@ -1,6 +1,8 @@
 FROM tiangolo/uvicorn-gunicorn-fastapi:python3.7-alpine3.8
 LABEL maintainer="maybe.hello.world@gmail.com"
 
+RUN apk --no-cache add build-base 
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
